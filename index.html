@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AI Appointment Scheduler</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Nunito', Arial, sans-serif;
+            background: linear-gradient(135deg, #e3f6fc 0%, #f6fff7 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 1rem;
+        }
+        .container {
+            background: #ffffffcc;
+            padding: 2.5rem 2.5rem 2rem 2.5rem;
+            border-radius: 18px;
+            box-shadow: 0 6px 24px rgba(60,180,180,0.10);
+            max-width: 420px;
+            width: 100%;
+            position: relative;
+        }
+        .health-icon {
+            display: block;
+            margin: 0 auto 1rem auto;
+            width: 60px;
+            height: 60px;
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 1.2rem;
+            color: #2e7d32;
+            font-weight: 700;
+            letter-spacing: 1px;
+        }
+        label {
+            display: block;
+            margin-bottom: 0.3rem;
+            font-weight: bold;
+            color: #3887a2;
+        }
+        input[type="text"],
+        input[type="datetime-local"],
+        select {
+            width: 100%;
+            padding: 0.5rem 0.75rem;
+            margin-bottom: 1rem;
+            border: 1.8px solid #ddd;
+            border-radius: 6px;
+            font-size: 1rem;
+            background: #fff;
+            transition: border-color 0.3s ease;
+        }
+        input[type="text"]:focus,
+        input[type="datetime-local"]:focus,
+        select:focus {
+            border-color: #3f51b5;
+            outline: none;
+        }
+        button {
+            width: 100%;
+            padding: 0.7rem;
+            font-size: 1.13rem;
+            background: linear-gradient(90deg, #26a69a 0%, #64b5f6 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            box-shadow: 0 2px 8px rgba(38,166,154,0.08);
+            transition: background 0.3s ease, box-shadow 0.3s ease;
+        }
+        button:hover {
+            background: linear-gradient(90deg, #3887a2 0%, #26a69a 100%);
+            box-shadow: 0 4px 16px rgba(38,166,154,0.15);
+        }
+        #responseMessage {
+            margin-top: 1rem;
+            font-weight: 600;
+            color: #388e3c;
+            text-align: center;
+            font-size: 1.08rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+        #errorMessage {
+            margin-top: 1rem;
+            font-weight: 600;
+            color: #d32f2f;
+            text-align: center;
+            font-size: 1.08rem;
+        }
+        audio {
+            margin-top: 1rem;
+            width: 100%;
+            outline: none;
+        }
+        .helper-text {
+            font-size: 0.92rem;
+            color: #7cb7b7;
+            margin-bottom: 0.7rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <svg class="health-icon" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="32" cy="32" r="32" fill="#e3f6fc"/>
+            <path d="M32 16v32M16 32h32" stroke="#26a69a" stroke-width="4" stroke-linecap="round"/>
+        </svg>
+        <h1>AI Appointment Scheduler</h1>
+
+        <form id="appointmentForm">
+            <label for="doctor_name">Doctor Name:</label>
+            <select id="doctor_name" name="doctor_name" required>
+                <option value="">Select Doctor</option>
+                <option value="Dr. Smith">Dr. Smith</option>
+                <option value="Dr. Johnson">Dr. Johnson</option>
+                <option value="Dr. Lee">Dr. Lee</option>
+                <option value="Dr. Patel">Dr. Patel</option>
+            </select>
+            <div class="helper-text">Choose the doctor you want to book with.</div>
+
+            <label for="description">Description:</label>
+            <select id="description" name="description" required>
+                <option value="">Select Reason</option>
+                <option value="Blood test">Blood test</option>
+                <option value="Consultation">Consultation</option>
+                <option value="Follow-up">Follow-up</option>
+                <option value="Vaccination">Vaccination</option>
+                <option value="Other">Other</option>
+            </select>
+            <div class="helper-text">Select the reason for your appointment.</div>
+
+            <label for="time_slot">Time Slot:</label>
+            <input type="datetime-local" id="time_slot" name="time_slot" required />
+            <div class="helper-text">Choose your preferred date and time.</div>
+
+            <button type="submit">Schedule Appointment</button>
+        </form>
+
+        <div id="responseMessage" role="alert" aria-live="polite"></div>
+        <div id="errorMessage" role="alert" aria-live="assertive"></div>
+
+        <audio id="ttsAudio" controls style="display:none;"></audio>
+    </div>
+
+    <script>
+        const form = document.getElementById("appointmentForm");
+        const responseMessage = document.getElementById("responseMessage");
+        const errorMessage = document.getElementById("errorMessage");
+        const audio = document.getElementById("ttsAudio");
+        const timeSlotInput = document.getElementById("time_slot");
+
+        // Set min date/time to now
+        function setMinDateTime() {
+            const now = new Date();
+            const offset = now.getTimezoneOffset();
+            const localDate = new Date(now.getTime() - (offset * 60000));
+            timeSlotInput.min = localDate.toISOString().slice(0,16);
+        }
+        setMinDateTime();
+
+        form.addEventListener("submit", async function(event) {
+            event.preventDefault();
+
+            responseMessage.textContent = "";
+            errorMessage.textContent = "";
+            audio.style.display = "none";
+            audio.pause();
+            audio.src = "";
+
+            const doctor = form.doctor_name.value;
+            const description = form.description.value;
+            const time = form.time_slot.value;
+
+            if (!doctor || !description || !time) {
+                errorMessage.textContent = "Please fill out all the fields.";
+                return;
+            }
+
+            // Validate time slot is not in the past
+            const selectedDate = new Date(time);
+            const now = new Date();
+            if (selectedDate < now) {
+                errorMessage.textContent = "Please select a valid future date and time.";
+                return;
+            }
+
+            try {
+                const res = await fetch("http://127.0.0.1:5000/schedule-appointment", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ doctor, description, time })
+                });
+
+                const data = await res.json();
+
+                if (res.ok) {
+                    responseMessage.textContent = data.message || "Appointment scheduled successfully!";
+                    form.reset();
+                    setMinDateTime();
+
+                    if (data.audioUrl) {
+                        // Ensure audio URL has leading slash
+                        const audioSrc = data.audioUrl.startsWith('/') ? data.audioUrl : '/' + data.audioUrl;
+                        audio.src = `http://127.0.0.1:5000${audioSrc}`;
+                        audio.style.display = "block";
+                        audio.play();
+                    }
+                } else {
+                    errorMessage.textContent = data.error || "Failed to schedule appointment.";
+                }
+            } catch (error) {
+                errorMessage.textContent = "Network error, please try again.";
+                console.error("Fetch error:", error);
+            }
+        });
+    </script>
+</body>
+</html>
